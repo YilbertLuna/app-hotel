@@ -18,6 +18,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import { useReservations } from '../context/ReservationContext';
 
 export default function ExploreScreen () {
@@ -29,6 +30,12 @@ export default function ExploreScreen () {
     const [selectedFeatures, setSelectedFeatures] = useState([]);
     const [showFilters, setShowFilters] = useState(false);
     const [priceRange, setPriceRange] = useState([0, 150]);
+    const [dateModalVisible, setDateModalVisible] = useState(false);
+    const [selectedDates, setSelectedDates] = useState({
+    checkIn: null,
+    checkOut: null,
+    nights: 0,
+    });
     
     // Contexto con verificación de existencia
     const reservationContext = useReservations();
@@ -70,6 +77,12 @@ export default function ExploreScreen () {
         }
     });
 
+    // handler para días
+    const handleDaysSelection = () => {
+        setDaysModalVisible(false);
+        setModalVisible(true); // Mostrar el modal de confirmación después
+    };
+
     const maxThumbPanResponder = PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onPanResponderMove: (evt, gestureState) => {
@@ -84,25 +97,30 @@ export default function ExploreScreen () {
 
     // Función de reserva
     const handleReservation = async () => {
-        if (!currentUser?.email) {
-            Alert.alert("Error", "Debes iniciar sesión para reservar.");
+        if (!selectedDates.checkOut) {
+            Alert.alert("Error", "Selecciona fechas válidas");
             return;
         }
 
-        try {
-            const success = await addReservation({
-                roomId: selectedRoom._id,
-                userId: currentUser.email,
-                roomName: selectedRoom.name,
-                date: new Date().toISOString()
-            });
+        const success = await addReservation({
+            roomId: selectedRoom._id,
+            userId: currentUser.email,
+            roomName: selectedRoom.name,
+            roomPrice: selectedRoom.price,
+            daysStaying: selectedDates.nights,
+            checkInDate: selectedDates.checkIn,
+            checkOutDate: selectedDates.checkOut,
+            date: new Date().toISOString(), // Fecha de reserva
+        });
 
-            if (success) {
-                setModalVisible(false);
-                Alert.alert("¡Éxito!", `Reserva confirmada para ${selectedRoom.name}`);
-            }
-        } catch (error) {
-            Alert.alert("Error", "Ocurrió un problema al procesar tu reserva");
+        if (success) {
+            setModalVisible(false);
+            setSelectedDates({ checkIn: null, checkOut: null, nights: 0 });
+            Alert.alert("¡Reserva confirmada!", 
+            `${selectedRoom.name}\n` +
+            `Del ${formatDate(selectedDates.checkIn)} al ${formatDate(selectedDates.checkOut)}\n` +
+            `(${selectedDates.nights} noches)`
+            );
         }
     };
 
@@ -132,7 +150,7 @@ export default function ExploreScreen () {
             style={styles.roomCard} 
             onPress={() => {
                 setSelectedRoom(item);
-                setModalVisible(true);
+                setDateModalVisible(true);
             }}
             disabled={isLoading}
         >
@@ -170,6 +188,30 @@ export default function ExploreScreen () {
             </View>
         );
     }
+
+    // Formatear fecha legible
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString('es-ES', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+        });
+    };
+
+    // Generar rango de fechas para el calendario
+    const generateDateRange = (start, end) => {
+        const dates = {};
+        let current = new Date(start);
+        const last = new Date(end);
+
+        while (current <= last) {
+            const dateStr = current.toISOString().split('T')[0];
+            dates[dateStr] = { selected: true, color: '#a7c4ff' };
+            current.setDate(current.getDate() + 1);
+        }
+
+        return dates;
+    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -272,6 +314,97 @@ export default function ExploreScreen () {
                     }
                 />
 
+                {/* modal de dias de reserva */}
+                <Modal visible={dateModalVisible} animationType="slide" transparent>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.calendarModalContent}>
+                        <Text style={styles.modalTitle}>Selecciona tus fechas</Text>
+                        
+                        <Calendar
+                            minDate={new Date()}
+                            onDayPress={(day) => {
+                            if (!selectedDates.checkIn || (selectedDates.checkIn && selectedDates.checkOut)) {
+                                // Primera selección o reset
+                                setSelectedDates({
+                                checkIn: day.dateString,
+                                checkOut: null,
+                                nights: 0,
+                                });
+                            } else if (day.dateString > selectedDates.checkIn) {
+                                // Seleccionar check-out
+                                const nights = Math.floor(
+                                (new Date(day.dateString) - new Date(selectedDates.checkIn)
+                                ) / (1000 * 60 * 60 * 24));
+                                
+                                setSelectedDates({
+                                ...selectedDates,
+                                checkOut: day.dateString,
+                                nights,
+                                });
+                            }
+                            }}
+                            markedDates={{
+                            [selectedDates.checkIn]: { selected: true, startingDay: true, color: '#4a6cf7' },
+                            [selectedDates.checkOut]: { selected: true, endingDay: true, color: '#4a6cf7' },
+                            ...(selectedDates.checkIn && selectedDates.checkOut ? {
+                                ...generateDateRange(selectedDates.checkIn, selectedDates.checkOut),
+                            } : {}),
+                            }}
+                            theme={{
+                            selectedDayBackgroundColor: '#4a6cf7',
+                            todayTextColor: '#4a6cf7',
+                            arrowColor: '#4a6cf7',
+                            }}
+                        />
+
+                        <View style={styles.dateSummary}>
+                            <Text style={styles.summaryText}>
+                            {selectedDates.checkIn ? `Entrada: ${formatDate(selectedDates.checkIn)}` : 'Selecciona entrada'}
+                            </Text>
+                            <Text style={styles.summaryText}>
+                            {selectedDates.checkOut ? `Salida: ${formatDate(selectedDates.checkOut)}` : 'Selecciona salida'}
+                            </Text>
+                            <Text style={styles.summaryText}>
+                            {selectedDates.nights > 0 ? `${selectedDates.nights} noche${selectedDates.nights !== 1 ? 's' : ''}` : ''}
+                            </Text>
+                            {selectedDates.nights > 0 && selectedRoom && (
+                                <Text style={styles.totalPriceText}>
+                                    Total: ${selectedRoom.price * selectedDates.nights} 
+                                    <Text style={styles.priceDetail}> (${selectedRoom.price} x {selectedDates.nights} noches)</Text>
+                                </Text>
+                            )}
+                        </View>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity 
+                            style={[styles.modalButton, styles.cancelButton]}
+                            onPress={() => {
+                                setDateModalVisible(false);
+                                setSelectedDates({ checkIn: null, checkOut: null, nights: 0 });
+                            }}
+                            >
+                            <Text style={styles.cancelButtonText}>Cancelar</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity 
+                            style={[styles.modalButton, styles.confirmButton]}
+                            onPress={() => {
+                                if (selectedDates.checkIn && selectedDates.checkOut) {
+                                setDateModalVisible(false);
+                                setModalVisible(true);
+                                } else {
+                                Alert.alert("Fechas incompletas", "Selecciona ambas fechas");
+                                }
+                            }}
+                            disabled={!selectedDates.checkOut}
+                            >
+                            <Text style={styles.confirmButtonText}>Continuar</Text>
+                            </TouchableOpacity>
+                        </View>
+                        </View>
+                    </View>
+                    </Modal>
+
                 {/* Modal de reserva */}
                 <Modal visible={modalVisible} animationType="slide" transparent>
                     <View style={styles.modalContainer}>
@@ -298,6 +431,17 @@ export default function ExploreScreen () {
                             
                             <Text style={styles.modalDescription}>{selectedRoom?.description}</Text>
                             
+                            {selectedDates.nights > 0 && (
+                                <View style={styles.totalContainer}>
+                                    <Text style={styles.totalText}>
+                                    Total a pagar: <Text style={styles.totalAmount}>${selectedRoom.price * selectedDates.nights}</Text>
+                                    </Text>
+                                    <Text style={styles.priceBreakdown}>
+                                    ${selectedRoom.price} x {selectedDates.nights} noches
+                                    </Text>
+                                </View>
+                            )}
+
                             <View style={styles.modalButtons}>
                                 <TouchableOpacity 
                                     style={[styles.modalButton, styles.cancelButton]}
@@ -601,5 +745,53 @@ const styles = StyleSheet.create({
     confirmButtonText: {
         color: '#fff',
         fontWeight: '600',
+    },
+    calendarModalContent: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        width: '95%',
+        padding: 16,
+    },
+    dateSummary: {
+        marginVertical: 16,
+        padding: 12,
+        backgroundColor: '#f8f9fa',
+        borderRadius: 8,
+    },
+    summaryText: {
+        fontSize: 16,
+        color: '#333',
+        marginVertical: 4,
+    },
+    totalContainer: {
+        marginVertical: 16,
+        padding: 12,
+        backgroundColor: '#f8f9fa',
+        borderRadius: 8,
+    },
+    totalText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+        textAlign: 'center',
+    },
+    totalAmount: {
+        color: '#27ae60',
+    },
+    priceBreakdown: {
+        fontSize: 14,
+        color: '#7f8c8d',
+        textAlign: 'center',
+        marginTop: 4,
+    },
+    totalPriceText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#27ae60',
+        marginTop: 8,
+    },
+    priceDetail: {
+        fontSize: 14,
+        color: '#7f8c8d',
     },
 });

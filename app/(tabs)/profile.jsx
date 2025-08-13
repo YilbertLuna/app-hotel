@@ -80,24 +80,47 @@ export default function ProfileScreen() {
                                     <MaterialIcons name="meeting-room" size={18} color="#666" />
                                     <Text style={styles.infoText}>Habitación: {reservation.roomName}</Text>
                                 </View>
+                                
                                 <View style={styles.infoItem}>
                                     <MaterialIcons name="date-range" size={18} color="#666" />
                                     <Text style={styles.infoText}>
-                                        Fecha: {new Date(reservation.date).toLocaleDateString()}
+                                        Entrada: {new Date(reservation.checkInDate).toLocaleDateString()}
                                     </Text>
                                 </View>
+                                
+                                <View style={styles.infoItem}>
+                                    <MaterialIcons name="date-range" size={18} color="#666" />
+                                    <Text style={styles.infoText}>
+                                        Salida: {new Date(reservation.checkOutDate).toLocaleDateString()}
+                                    </Text>
+                                </View>
+                                
+                                <View style={styles.infoItem}>
+                                    <MaterialIcons name="nights-stay" size={18} color="#666" />
+                                    <Text style={styles.infoText}>
+                                        Duración: {reservation.daysStaying} día{reservation.daysStaying !== 1 ? 's' : ''}
+                                    </Text>
+                                </View>
+
+                                <View style={styles.infoItem}>
+                                    <MaterialIcons name="attach-money" size={18} color="#666" />
+                                    <Text style={styles.infoText}>
+                                        Total: ${
+                                        reservation.totalPrice ??
+                                        (reservation.roomPrice * reservation.daysStaying) ??
+                                        "No disponible"
+                                        }
+                                    </Text>
+                                </View>
+
                                 <TouchableOpacity 
                                     style={styles.cancelButton}
-                                    onPress={() => handleCancel(reservation.roomId)}
-                                    disabled={isLoading}
+                                    onPress={() => handleCancel(reservation.id)} // ¡Usa reservation.id!
                                 >
-                                    {isLoading ? (
-                                        <ActivityIndicator color="#fff" />
-                                    ) : (
-                                        <Text style={styles.cancelButtonText}>Cancelar Reserva</Text>
-                                    )}
+                                    <Text style={styles.cancelButtonText}>Cancelar Reserva</Text>
                                 </TouchableOpacity>
                             </View>
+                            
                         ))
                     ) : (
                         <View style={styles.noReservation}>
@@ -261,5 +284,11 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 14,
         fontWeight: '600',
+    },
+    totalPrice: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#27ae60',
+        marginLeft: 10,
     }
 });

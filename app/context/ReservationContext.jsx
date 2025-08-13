@@ -49,12 +49,24 @@ export const ReservationProvider = ({ children }) => {
 
     const addReservation = async (newReservation) => {
         try {
-            const updatedReservations = [...reservations, newReservation];
-            setReservations(updatedReservations);
+            // Objeto unificado con todos los campos necesarios
+            const completeReservation = {
+                ...newReservation,
+                id: Date.now().toString(), // ID único
+                totalPrice: newReservation.roomPrice * (newReservation.daysStaying || 1),
+                daysStaying: newReservation.daysStaying || 1,
+                checkInDate: newReservation.checkInDate || new Date().toISOString(),
+                checkOutDate: newReservation.checkOutDate || 
+                    new Date(new Date().setDate(new Date().getDate() + (newReservation.daysStaying || 1))).toISOString(),
+            };
+
+            // Actualizar estado
+            setReservations(prev => [...prev, completeReservation]);
             
+            // Actualizar AsyncStorage
             const allReservationsString = await AsyncStorage.getItem('@HotelApp:reservations');
             let allReservations = allReservationsString ? JSON.parse(allReservationsString) : [];
-            allReservations.push(newReservation);
+            allReservations.push(completeReservation);
             await AsyncStorage.setItem('@HotelApp:reservations', JSON.stringify(allReservations));
             
             return true;
@@ -64,20 +76,21 @@ export const ReservationProvider = ({ children }) => {
         }
     };
 
-    const cancelReservation = async (roomId) => {
+    const cancelReservation = async (reservationId) => { // Cambia el parámetro a reservationId
         try {
-            const updated = reservations.filter(res => res.roomId !== roomId);
+            // Filtra las reservas del usuario actual, excluyendo la reserva específica
+            const updated = reservations.filter(res => res.id !== reservationId);
             setReservations(updated);
             
+            // Actualiza AsyncStorage
             const allReservationsString = await AsyncStorage.getItem('@HotelApp:reservations');
             if (allReservationsString) {
                 const allReservations = JSON.parse(allReservationsString);
                 const updatedAll = allReservations.filter(res => 
-                    !(res.userId === currentUser?.email && res.roomId === roomId)
+                    !(res.userId === currentUser?.email && res.id === reservationId) // Usa id único
                 );
                 await AsyncStorage.setItem('@HotelApp:reservations', JSON.stringify(updatedAll));
             }
-            
             return true;
         } catch (error) {
             console.error("Error canceling reservation:", error);
