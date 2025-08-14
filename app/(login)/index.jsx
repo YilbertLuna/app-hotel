@@ -81,7 +81,7 @@ export default function LoginPage() {
       await setUser(userData);
 
       // Redirección
-      router.push(isAdmin ? '/(admin)' : '/(tabs)');
+      router.push(isAdmin ? '/(admin)/dashboard' : '/(tabs)');
 
     } catch (error) {
       Alert.alert(

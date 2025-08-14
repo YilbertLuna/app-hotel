@@ -8,6 +8,16 @@ export const ReservationProvider = ({ children }) => {
     const [reservations, setReservations] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [users, setUsers] = useState([]);
+
+    const loadUsers = async () => {
+        try {
+            const usersString = await AsyncStorage.getItem('@HotelApp:users');
+            if (usersString) setUsers(JSON.parse(usersString));
+        } catch (error) {
+            console.error("Error loading users:", error);
+        }
+    };
 
     const setUser = async (userData) => {
         try {
@@ -35,46 +45,99 @@ export const ReservationProvider = ({ children }) => {
         }
     };
 
-    const loadReservations = async (userId) => {
+    // const loadReservations = async (userId) => {
+    //     try {
+    //         const resString = await AsyncStorage.getItem('@HotelApp:reservations');
+    //         if (resString) {
+    //             const allReservations = JSON.parse(resString);
+    //             setReservations(allReservations.filter(res => res.userId === userId));
+    //         }
+    //     } catch (error) {
+    //         console.error("Error loading reservations:", error);
+    //     }
+    // };
+    const loadReservations = async (userId = null) => {
         try {
+            setIsLoading(true);
             const resString = await AsyncStorage.getItem('@HotelApp:reservations');
             if (resString) {
-                const allReservations = JSON.parse(resString);
+            const allReservations = JSON.parse(resString);
+            
+            // Si es admin o no hay usuario, muestra todas
+            if (!userId || currentUser?.role === 'admin') {
+                setReservations(allReservations);
+            } else {
+                // Filtra por usuario
                 setReservations(allReservations.filter(res => res.userId === userId));
+            }
             }
         } catch (error) {
             console.error("Error loading reservations:", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const addReservation = async (newReservation) => {
         try {
-            // Objeto unificado con todos los campos necesarios
-            const completeReservation = {
-                ...newReservation,
-                id: Date.now().toString(), // ID único
-                totalPrice: newReservation.roomPrice * (newReservation.daysStaying || 1),
-                daysStaying: newReservation.daysStaying || 1,
-                checkInDate: newReservation.checkInDate || new Date().toISOString(),
-                checkOutDate: newReservation.checkOutDate || 
-                    new Date(new Date().setDate(new Date().getDate() + (newReservation.daysStaying || 1))).toISOString(),
+            const reservationWithId = {
+            ...newReservation,
+            id: Date.now().toString(),
+            date: new Date().toISOString()
             };
 
-            // Actualizar estado
-            setReservations(prev => [...prev, completeReservation]);
-            
-            // Actualizar AsyncStorage
+            // Obtener reservas existentes
             const allReservationsString = await AsyncStorage.getItem('@HotelApp:reservations');
             let allReservations = allReservationsString ? JSON.parse(allReservationsString) : [];
-            allReservations.push(completeReservation);
-            await AsyncStorage.setItem('@HotelApp:reservations', JSON.stringify(allReservations));
+
+            // Agregar nueva reserva
+            const updatedReservations = [...allReservations, reservationWithId];
             
+            // Guardar en AsyncStorage
+            await AsyncStorage.setItem('@HotelApp:reservations', JSON.stringify(updatedReservations));
+            
+            // Actualizar estado basado en rol
+            if (currentUser?.role === 'admin') {
+            setReservations(updatedReservations); // Admin ve todas
+            } else {
+            setReservations(updatedReservations.filter(res => res.userId === currentUser?.email));
+            }
+
             return true;
         } catch (error) {
             console.error("Error adding reservation:", error);
             return false;
         }
     };
+
+    // const addReservation = async (newReservation) => {
+    //     try {
+    //         // Objeto unificado con todos los campos necesarios
+    //         const completeReservation = {
+    //             ...newReservation,
+    //             id: Date.now().toString(), // ID único
+    //             totalPrice: newReservation.roomPrice * (newReservation.daysStaying || 1),
+    //             daysStaying: newReservation.daysStaying || 1,
+    //             checkInDate: newReservation.checkInDate || new Date().toISOString(),
+    //             checkOutDate: newReservation.checkOutDate || 
+    //                 new Date(new Date().setDate(new Date().getDate() + (newReservation.daysStaying || 1))).toISOString(),
+    //         };
+
+    //         // Actualizar estado
+    //         setReservations(prev => [...prev, completeReservation]);
+            
+    //         // Actualizar AsyncStorage
+    //         const allReservationsString = await AsyncStorage.getItem('@HotelApp:reservations');
+    //         let allReservations = allReservationsString ? JSON.parse(allReservationsString) : [];
+    //         allReservations.push(completeReservation);
+    //         await AsyncStorage.setItem('@HotelApp:reservations', JSON.stringify(allReservations));
+            
+    //         return true;
+    //     } catch (error) {
+    //         console.error("Error adding reservation:", error);
+    //         return false;
+    //     }
+    // };
 
     const cancelReservation = async (reservationId) => { // Cambia el parámetro a reservationId
         try {
@@ -127,7 +190,11 @@ export const ReservationProvider = ({ children }) => {
                 addReservation,
                 cancelReservation,
                 handleLogout,
-                refreshReservations: loadData
+                refreshReservations: loadData,
+                users,
+                loadUsers,
+                handleLogout,
+                loadReservations
             }}
         >
             {children}
