@@ -29,8 +29,9 @@ export default function LoginPage() {
     try {
       const endpoint = isLogin ? "auth/login" : "auth/register";
       const body = isLogin ? { email, password } : { user: name, email, password };
-
-      const response = await fetch(`http://192.168.0.107:3000/api/${endpoint}`, {
+      const localIp = '192.168.0.107'
+      
+      const response = await fetch(`http://${localIp}:3000/api/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
